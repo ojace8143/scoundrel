@@ -19,7 +19,7 @@ pub fn main() anyerror!void {
 
         rl.clearBackground(.black);
 
-        rl.drawText("Congrats! You created your first window!", 190, 200, 20, .light_gray);
+        rl.drawText("making game logic first.", 190, 200, 20, .light_gray);
         //----------------------------------------------------------------------------------
         }
 }
