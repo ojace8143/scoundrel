@@ -8,3 +8,4 @@ pub const window_height: u32 = 720;
 
 // Game
 pub const target_fps: u32 = 144;
+pub const seed: u64 = 69;

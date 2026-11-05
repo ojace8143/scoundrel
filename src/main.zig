@@ -65,9 +65,27 @@ const Game = struct {
                         }
                 }
         }
+        
+        fn shuffleDeck(self: *Game, random: std.Random) void {
+                var i = self.deck_size;
+
+                while (i > 1) {
+                        i -= 1;
+
+                        const j = random.uintLessThan(usize, i + 1);
+
+                        const temp = self.deck[i];
+                        self.deck[i] = self.deck[j];
+                        self.deck[j] = temp;
+                }
+        }
 };
 
 pub fn main() anyerror!void {
+        
+        var prng = std.Random.DefaultPrng.init(config.seed);
+        const random = prng.random();
+
         // game state
         var game = Game {
                 .deck = undefined,
@@ -76,6 +94,7 @@ pub fn main() anyerror!void {
         };
         
         game.generateDeck();
+        game.shuffleDeck(random);
 
         std.debug.print("GAME: deck size: {d}\n", .{game.deck_size});
 

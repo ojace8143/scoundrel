@@ -10,6 +10,8 @@ pub fn build(b: *std.Build) void {
         });
         
         const raylib = raylib_dep.module("raylib");
+        const raygui = raylib_dep.module("raygui");
+        const raylib_arfifact = raylib_dep.artifact("raylib");
 
         const exe = b.addExecutable(.{
                 .name = "scoundrel",
@@ -20,7 +22,9 @@ pub fn build(b: *std.Build) void {
                 }),
         });
         
+        exe.root_module.linkLibrary(raylib_arfifact);
         exe.root_module.addImport("raylib", raylib);
+        exe.root_module.addImport("raygui", raygui);
         b.installArtifact(exe);
 
         const run_step = b.step("run", "Run Scoundrel");
