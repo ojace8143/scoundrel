@@ -67,6 +67,7 @@ const Game = struct {
                                 self.deck_size += 1;
                         }
                 }
+                std.debug.print("GAME: deck size: {d}\n", .{self.deck_size});
         }
         
         fn shuffleDeck(self: *Game, random: std.Random) void {
@@ -80,12 +81,25 @@ const Game = struct {
                         self.deck[i] = self.deck[j];
                         self.deck[j] = temp;
                 }
+                std.debug.print("GAME: deck shuffled", .{});
         }
 
         fn getRoom(self: *Game) void {
                 for (&self.room) |*card| {
                         self.deck_size -= 1;
                         card.* = self.deck[self.deck_size]; // assign the actual card into the room, and not just the pointer. thats what card.* is for.
+                }
+
+                std.debug.print("GAME: current room:\n", .{});
+                for (self.room, 0..) |card , i| { // card: iterates over the cards in the room i: index
+                        std.debug.print(
+                                "[Card {d}]: {s} of {s}\n",
+                                .{
+                                        i + 1,
+                                        @tagName(card.rank), // @tagName converts an enum value into a string so we can print it.
+                                        @tagName(card.suit),
+                                }
+                        );
                 }
         }
 };
@@ -107,7 +121,6 @@ pub fn main() anyerror!void {
         game.shuffleDeck(random);
         game.getRoom();
 
-        std.debug.print("GAME: deck size: {d}\n", .{game.deck_size});
 
         // raylib init
         rl.initWindow(config.window_width, config.window_height, config.window_title);
