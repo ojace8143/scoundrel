@@ -1,14 +1,13 @@
 const rl = @import("raylib");
 const std = @import("std");
 
-pub fn main() anyerror!void {
-        const screenWidth = 800;
-        const screenHeight = 450;
+const config = @import("config.zig");
 
-        rl.initWindow(screenWidth, screenHeight, "raylib-zig [core] example - basic window");
+pub fn main() anyerror!void {
+        rl.initWindow(config.window_width, config.window_height, config.window_title);
         defer rl.closeWindow(); // Close window and OpenGL context
 
-        rl.setTargetFPS(60); // Set our game to run at 60 frames-per-second
+        rl.setTargetFPS(config.target_fps); // Set our game to run at 60 frames-per-second
 
         // Main game loop
         while (!rl.windowShouldClose()) { // Detect window close button or ESC key
