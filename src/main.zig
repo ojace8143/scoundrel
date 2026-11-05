@@ -1,3 +1,5 @@
+//! main.zig. game logic and funcionality is contained here, as well as the raylib sutff
+
 const rl = @import("raylib");
 const std = @import("std");
 
@@ -12,8 +14,8 @@ const Suit = enum {
 };
 
 const Rank = enum(u8) {
-        ace = 1,
-        two,
+        ace = 1, // sets ace to a u8 of 1, rest of cards follow.
+        two,     // two is now two = 2, because of the ace = 1
         three,
         four,
         five,
@@ -34,6 +36,7 @@ const Card = struct {
 
 const Game = struct {
         deck: [44]Card, // slice of 44 cards
+        room: [4]Card,
         deck_size: usize,
         health: u8,
 
@@ -73,10 +76,16 @@ const Game = struct {
                         i -= 1;
 
                         const j = random.uintLessThan(usize, i + 1);
-
                         const temp = self.deck[i];
                         self.deck[i] = self.deck[j];
                         self.deck[j] = temp;
+                }
+        }
+
+        fn getRoom(self: *Game) void {
+                for (&self.room) |*card| {
+                        self.deck_size -= 1;
+                        card.* = self.deck[self.deck_size]; // assign the actual card into the room, and not just the pointer. thats what card.* is for.
                 }
         }
 };
@@ -89,12 +98,14 @@ pub fn main() anyerror!void {
         // game state
         var game = Game {
                 .deck = undefined,
+                .room = undefined,
                 .deck_size = 0,
                 .health = 20,
         };
         
         game.generateDeck();
         game.shuffleDeck(random);
+        game.getRoom();
 
         std.debug.print("GAME: deck size: {d}\n", .{game.deck_size});
 
