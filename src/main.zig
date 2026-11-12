@@ -14,8 +14,7 @@ const Suit = enum {
 };
 
 const Rank = enum(u8) {
-        ace = 1, // sets ace to a u8 of 1, rest of cards follow.
-        two,     // two is now two = 2, because of the ace = 1
+        two = 2, // because two = 2, rest of ranks will enumerate as three = 3, four = 4, etc.
         three,
         four,
         five,
@@ -27,18 +26,46 @@ const Rank = enum(u8) {
         jack,
         queen,
         king,
+        ace,
+};
+
+const Action = enum {
+        heal,
+        equip,
+        fight,
+        barehand,
 };
 
 const Card = struct {
         rank: Rank,
         suit: Suit,
+        
+        fn resolve(self: *Card, barehanded: bool) Action {
+                if (self.suit == Suit.spades or self.suit == Suit.clubs) {
+                        if (barehanded) {
+                                return Action.barehand;
+                        } else if (!barehanded) {
+                                return Action.fight;
+                        }
+                } else if (self.suit == Suit.hearts) {
+                        return Action.heal;
+                } else if (self.suit == Suit.diamonds) {
+                        return Action.equip;
+                }
+        }
 };
 
 const Game = struct {
         deck: [44]Card, // slice of 44 cards
-        room: [4]Card,
         deck_size: usize,
+        room: [4]Card,
+
         health: u8,
+        equipped_weapon: Card,
+
+        // conceptually:
+        // deck[0] = "bottom"
+        // deck[43] = "top"
 
         fn generateDeck(self: *Game) void {
                 const suits = [_]Suit{
@@ -81,13 +108,13 @@ const Game = struct {
                         self.deck[i] = self.deck[j];
                         self.deck[j] = temp;
                 }
-                std.debug.print("GAME: deck shuffled", .{});
+                std.debug.print("GAME: deck shuffled\n", .{});
         }
 
         fn getRoom(self: *Game) void {
                 for (&self.room) |*card| {
                         self.deck_size -= 1;
-                        card.* = self.deck[self.deck_size]; // assign the actual card into the room, and not just the pointer. thats what card.* is for.
+                        card.* = self.deck[44 - self.deck_size]; // assign the actual card into the room, and not just the pointer. thats what card.* is for.
                 }
 
                 std.debug.print("GAME: current room:\n", .{});
@@ -102,6 +129,15 @@ const Game = struct {
                         );
                 }
         }
+
+        fn avoidRoom(self: *Game) void {
+                for (&self.room) |*card| {
+                        self.deck[self.deck_size] = card.*;
+                        self.deck_size += 1;
+                }
+
+                std.debug.print("GAME: room avoided.\n", .{});
+        }
 };
 
 pub fn main() anyerror!void {
@@ -112,13 +148,18 @@ pub fn main() anyerror!void {
         // game state
         var game = Game {
                 .deck = undefined,
-                .room = undefined,
                 .deck_size = 0,
+                .room = undefined,
                 .health = 20,
+                .equipped_weapon = undefined,
         };
         
         game.generateDeck();
         game.shuffleDeck(random);
+
+        game.getRoom();
+
+        game.avoidRoom();
         game.getRoom();
 
 
