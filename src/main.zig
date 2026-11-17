@@ -53,6 +53,17 @@ const Card = struct {
                         return Action.equip;
                 }
         }
+
+        fn getAsText(self: Card, allocator: std.mem.Allocator) ![]u8 {
+                return try std.fmt.allocPrint(
+                        allocator,
+                        "{s} of {s}",
+                        .{
+                                @tagName(self.rank),
+                                @tagName(self.suit),
+                        },
+                );
+        }
 };
 
 const Game = struct {
@@ -130,6 +141,27 @@ const Game = struct {
                 }
         }
 
+        fn getRoomText(self: Game, allocator: std.mem.Allocator) ![:0]u8 {
+                var buf: std.ArrayList(u8) = .empty;
+                defer buf.deinit(allocator);
+
+                for (self.room, 0..) |card, i| {
+                        const card_text = try card.getAsText(allocator);
+                        defer allocator.free(card_text);
+
+                        try buf.appendSlice(allocator, card_text);
+
+                        if (i < self.room.len - 1) { // adds | in between cards
+                                try buf.appendSlice(allocator, " | ");
+                        }
+                }
+                
+                const result = try allocator.allocSentinel(u8, buf.items.len, 0);
+                @memcpy(result, buf.items);
+
+                return result;
+        }
+
         fn avoidRoom(self: *Game) void {
                 const remaining = self.deck_size;
 
@@ -147,6 +179,8 @@ pub fn main() anyerror!void {
         var prng = std.Random.DefaultPrng.init(config.seed);
         const random = prng.random();
 
+        const allocator = std.heap.page_allocator;
+
         // game state
         var game = Game {
                 .deck = undefined,
@@ -158,13 +192,6 @@ pub fn main() anyerror!void {
         
         game.generateDeck();
         game.shuffleDeck(random);
-
-        game.getRoom();
-
-        game.avoidRoom();
-        game.getRoom();
-
-        game.avoidRoom();
         game.getRoom();
 
         // raylib init
@@ -175,14 +202,26 @@ pub fn main() anyerror!void {
 
         // Main game loop
         while (!rl.windowShouldClose()) { // Detect window close button or ESC key
+                
+                //-Input-------------------------
+                if (rl.isKeyPressed(.r)) {
+                        game.avoidRoom();
+                        game.getRoom();
+                }
+                //-------------------------------
 
-                //-Draw-----------------------------------------------------------------------------
+                //-Draw--------------------------
                 rl.beginDrawing();
                 defer rl.endDrawing();
 
                 rl.clearBackground(.black);
 
-                rl.drawText("making game logic first.", 190, 200, 20, .light_gray);
-                //----------------------------------------------------------------------------------
+                { // get room text, draw to screen
+                        const room_text = try game.getRoomText(allocator);
+                        defer allocator.free(room_text);
+
+                        rl.drawText(room_text, 20, 50, 20, .light_gray);
+                }
+               //-------------------------------
         }
 }
