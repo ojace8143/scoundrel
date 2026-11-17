@@ -76,7 +76,7 @@ const Game = struct {
                 };
 
                 for (suits) |suit| {
-                        for (1..14) |rank_num| {// 14 cards per suit
+                        for (2..15) |rank_num| {// 14 cards per suit
                                 const rank: Rank = @enumFromInt(rank_num); // will use rank_num to determine the rank from the enum
 
                                 // skip the red faces and aces (ooh tuff ryhme)
@@ -114,7 +114,7 @@ const Game = struct {
         fn getRoom(self: *Game) void {
                 for (&self.room) |*card| {
                         self.deck_size -= 1;
-                        card.* = self.deck[44 - self.deck_size]; // assign the actual card into the room, and not just the pointer. thats what card.* is for.
+                        card.* = self.deck[self.deck_size]; // deal from the top of the deck, assign the actual card into the room, and not just the pointer. thats what card.* is for.
                 }
 
                 std.debug.print("GAME: current room:\n", .{});
@@ -131,10 +131,12 @@ const Game = struct {
         }
 
         fn avoidRoom(self: *Game) void {
-                for (&self.room) |*card| {
-                        self.deck[self.deck_size] = card.*;
-                        self.deck_size += 1;
-                }
+                const remaining = self.deck_size;
+
+                // put the room on the bottom of the deck, so it gets dealt last
+                std.mem.copyBackwards(Card, self.deck[self.room.len..][0..remaining], self.deck[0..remaining]);
+                @memcpy(self.deck[0..self.room.len], &self.room);
+                self.deck_size += self.room.len;
 
                 std.debug.print("GAME: room avoided.\n", .{});
         }
@@ -162,6 +164,8 @@ pub fn main() anyerror!void {
         game.avoidRoom();
         game.getRoom();
 
+        game.avoidRoom();
+        game.getRoom();
 
         // raylib init
         rl.initWindow(config.window_width, config.window_height, config.window_title);
