@@ -33,25 +33,23 @@ const Action = enum {
         heal,
         equip,
         fight,
-        barehand,
+};
+
+const State = enum {
+        playing,
+        gameOver,
 };
 
 const Card = struct {
         rank: Rank,
         suit: Suit,
         
-        fn resolve(self: *Card, barehanded: bool) Action {
-                if (self.suit == Suit.spades or self.suit == Suit.clubs) {
-                        if (barehanded) {
-                                return Action.barehand;
-                        } else if (!barehanded) {
-                                return Action.fight;
-                        }
-                } else if (self.suit == Suit.hearts) {
-                        return Action.heal;
-                } else if (self.suit == Suit.diamonds) {
-                        return Action.equip;
-                }
+        fn resolve(self: Card) Action {
+                return switch (self.suit) {
+                        .spades, .clubs => .fight,
+                        .hearts => .heal,
+                        .diamonds => .equip,
+                };
         }
 
         fn getAsText(self: Card, allocator: std.mem.Allocator) ![]u8 {
@@ -70,9 +68,17 @@ const Game = struct {
         deck: [44]Card, // slice of 44 cards
         deck_size: usize,
         room: [4]Card,
+        room_len: usize,
 
         health: u8,
-        equipped_weapon: Card,
+        equipped_weapon: ?Card,
+        weapon_durabillity: u8, // highest rank the equipped weapon can still slay
+
+        potion_used: bool,
+        avoided_last_room: bool,
+
+        state: State,
+        random: std.Random,
 
         // conceptually:
         // deck[0] = "bottom"
@@ -123,17 +129,23 @@ const Game = struct {
         }
 
         fn getRoom(self: *Game) void {
-                for (&self.room) |*card| {
+                const needed = self.room.len - self.room_len;
+                const deal = @min(needed, self.deck_size);
+
+                var i = self.room_len;
+                while (i < self.room_len + deal) : (i += 1) {
                         self.deck_size -= 1;
-                        card.* = self.deck[self.deck_size]; // deal from the top of the deck, assign the actual card into the room, and not just the pointer. thats what card.* is for.
+                        self.room[i] = self.deck[self.deck_size]; // deal from the top of the deck into the room
                 }
+                self.room_len += deal;
+                self.potion_used = false;
 
                 std.debug.print("GAME: current room:\n", .{});
-                for (self.room, 0..) |card , i| { // card: iterates over the cards in the room i: index
+                for (self.room[0..self.room_len], 0..) |card, index| {
                         std.debug.print(
                                 "[Card {d}]: {s} of {s}\n",
                                 .{
-                                        i + 1,
+                                        index + 1,
                                         @tagName(card.rank), // @tagName converts an enum value into a string so we can print it.
                                         @tagName(card.suit),
                                 }
@@ -141,17 +153,25 @@ const Game = struct {
                 }
         }
 
+        fn removeRoomCard(self: *Game, index: usize) void {
+                var i = index;
+                while (i + 1 < self.room_len) : (i += 1) {
+                        self.room[i] = self.room[i + 1];
+                }
+                self.room_len -= 1;
+        }
+
         fn getRoomText(self: Game, allocator: std.mem.Allocator) ![:0]u8 {
                 var buf: std.ArrayList(u8) = .empty;
                 defer buf.deinit(allocator);
 
-                for (self.room, 0..) |card, i| {
+                for (self.room[0..self.room_len], 0..) |card, i| {
                         const card_text = try card.getAsText(allocator);
                         defer allocator.free(card_text);
 
                         try buf.appendSlice(allocator, card_text);
 
-                        if (i < self.room.len - 1) { // adds | in between cards
+                        if (i < self.room_len - 1) { // adds | in between cards
                                 try buf.appendSlice(allocator, " | ");
                         }
                 }
@@ -172,6 +192,110 @@ const Game = struct {
 
                 std.debug.print("GAME: room avoided.\n", .{});
         }
+
+        fn resolveCard(self: *Game, card: Card, barehanded: bool) void {
+                const card_value: u8 = @intFromEnum(card.rank);
+                const resolved_action = card.resolve();
+
+                switch (resolved_action) {
+                        .equip => {
+                                self.equipped_weapon = card;
+                                self.weapon_durabillity = 14; // a fresh weapon can slay any rank
+                        },
+
+                        .heal => {
+                                if (self.potion_used) return; // only one potion per room
+                                self.potion_used = true;
+                                self.health = @min(20, self.health + card_value);
+                        },
+
+                        .fight => {
+                                var damage: u8 = card_value;
+
+                                if (!barehanded) {
+                                        if (self.equipped_weapon) |weapon| {
+                                                if (card_value <= self.weapon_durabillity) {
+                                                        const weapon_value: u8 = @intFromEnum(weapon.rank);
+                                                        damage = if (card_value > weapon_value) card_value - weapon_value else 0;
+                                                        self.weapon_durabillity = card_value - 1; // next monster must rank lower
+                                                }
+                                        }
+                                }
+
+                                if (damage >= self.health) {
+                                        self.health = 0;
+                                        self.state = .gameOver;
+                                } else {
+                                        self.health -= damage;
+                                }
+                        },
+                }
+        }
+
+        fn update(self: *Game) void {
+                if (self.state != .playing) {
+                        if (rl.isKeyPressed(.enter)) {
+                                self.reset();
+                        }
+                        return;
+                }
+
+                if (self.room_len == 0) {
+                        if (self.deck_size == 0) {
+                                self.state = .gameOver; // dungeon cleared
+                        } else {
+                                self.getRoom();
+                        }
+                        return;
+                }
+
+                // keep the leftover card and deal the next room
+                if (self.room_len == 1 and self.deck_size > 0) {
+                        self.getRoom();
+                }
+
+                if (rl.isKeyPressed(.r) and self.room_len == self.room.len and !self.avoided_last_room) {
+                        self.avoidRoom();
+                        self.room_len = 0;
+                        self.getRoom();
+                        self.avoided_last_room = true;
+                        return;
+                }
+
+                const keys = [_]rl.KeyboardKey{ .one, .two, .three, .four };
+                const barehanded = rl.isKeyDown(.left_shift);
+
+                for (keys, 0..) |key, i| {
+                        if (!rl.isKeyPressed(key) or i >= self.room_len) continue;
+
+                        self.resolveCard(self.room[i], barehanded);
+                        self.removeRoomCard(i);
+                        self.avoided_last_room = false;
+                        break;
+                }
+        }
+
+        fn reset(self: *Game) void {
+                const random = self.random;
+
+                self.* = .{
+                        .deck = undefined,
+                        .deck_size = 0,
+                        .room = undefined,
+                        .room_len = 0,
+                        .health = 20,
+                        .equipped_weapon = null,
+                        .weapon_durabillity = undefined,
+                        .potion_used = false,
+                        .avoided_last_room = false,
+                        .state = .playing,
+                        .random = random,
+                };
+
+                self.generateDeck();
+                self.shuffleDeck(self.random);
+                self.getRoom();
+        }
 };
 
 pub fn main() anyerror!void {
@@ -186,8 +310,14 @@ pub fn main() anyerror!void {
                 .deck = undefined,
                 .deck_size = 0,
                 .room = undefined,
+                .room_len = 0,
                 .health = 20,
-                .equipped_weapon = undefined,
+                .equipped_weapon = null,
+                .weapon_durabillity = undefined,
+                .potion_used = false,
+                .avoided_last_room = false,
+                .state = .playing,
+                .random = random,
         };
         
         game.generateDeck();
@@ -203,11 +333,8 @@ pub fn main() anyerror!void {
         // Main game loop
         while (!rl.windowShouldClose()) { // Detect window close button or ESC key
                 
-                //-Input-------------------------
-                if (rl.isKeyPressed(.r)) {
-                        game.avoidRoom();
-                        game.getRoom();
-                }
+                //-Update------------------------
+                game.update();
                 //-------------------------------
 
                 //-Draw--------------------------
