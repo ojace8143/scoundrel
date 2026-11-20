@@ -5,8 +5,30 @@ zig clone of the game scoundrel with raylib-zig for funzies
 ## TODO list
 - [ ] make assets since i dont want it looking like booty butt 
 - [x] make the "deck" (randomizing, drawing a room)
-- [ ] get the game logic 
+- [x] get the game logic 
 - [ ] get comfortable
+- [ ] implement assets
+- [ ] basically make the ui and then we're done
+
+## how to play
+clone repo\
+```
+git clone https://github.com/ojace8143/scoundrel
+```
+
+compile\
+```
+zig build run
+```
+
+requirements:
+* zig 0.17.1+
+* might be linux only (dont have windows so cant test and im too lazy to set up a vm)
+```
+```
+```
+```
+
 
 ## notes
 zig is awesome
